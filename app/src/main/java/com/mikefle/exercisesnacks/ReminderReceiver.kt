@@ -6,11 +6,8 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.RingtoneManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import java.util.Calendar
 
 class ReminderReceiver : BroadcastReceiver() {
 
@@ -19,7 +16,7 @@ class ReminderReceiver : BroadcastReceiver() {
         AlarmScheduler.scheduleNext(context)
 
         if (!Prefs.isEnabled(context)) return
-        if (!withinWindow(context)) return
+        if (!Prefs.isActiveNow(context)) return
 
         ensureChannel(context)
 
@@ -44,14 +41,13 @@ class ReminderReceiver : BroadcastReceiver() {
         try {
             NotificationManagerCompat.from(context).notify(NOTIF_ID, builder.build())
         } catch (_: SecurityException) {
-            // POST_NOTIFICATIONS not granted yet; nothing else to do.
+            // POST_NOTIFICATIONS not granted yet; the alarm sound below still plays.
         }
-    }
 
-    private fun withinWindow(ctx: Context): Boolean {
-        val now = Calendar.getInstance()
-        val minOfDay = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-        return minOfDay >= Prefs.startMin(ctx) && minOfDay <= Prefs.endMin(ctx)
+        // Play the user's chosen sound at the chosen volume. goAsync() keeps this
+        // receiver alive until playback finishes (AlarmPlayer always calls back).
+        val result = goAsync()
+        AlarmPlayer.playOnce(context) { result.finish() }
     }
 
     private fun formatDur(sec: Int): String {
@@ -61,22 +57,22 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 
     companion object {
-        const val CHANNEL_ID = "exercise_snack_reminders"
+        // Sound is intentionally handled by AlarmPlayer (for volume control), so this
+        // channel is SILENT. The "_v2" id supersedes the older noisy channel; a channel's
+        // sound can't be changed after creation, so we retire the old id and delete it.
+        const val CHANNEL_ID = "exercise_snack_reminders_v2"
+        private const val LEGACY_CHANNEL_ID = "exercise_snack_reminders"
         const val NOTIF_ID = 42
 
         fun ensureChannel(ctx: Context) {
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            runCatching { nm.deleteNotificationChannel(LEGACY_CHANNEL_ID) }
             if (nm.getNotificationChannel(CHANNEL_ID) != null) return
             val channel = NotificationChannel(
                 CHANNEL_ID, "Exercise snack reminders", NotificationManager.IMPORTANCE_HIGH
             )
             channel.description = "Nudges you to do a quick exercise snack"
-            val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            val attrs = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-            channel.setSound(sound, attrs)
+            channel.setSound(null, null)           // silent: AlarmPlayer produces the sound
             channel.enableVibration(true)
             channel.vibrationPattern = longArrayOf(0, 400, 200, 400)
             nm.createNotificationChannel(channel)

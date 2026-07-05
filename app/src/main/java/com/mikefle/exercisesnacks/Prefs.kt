@@ -19,6 +19,13 @@ object Prefs {
     private const val K_DURATION = "duration_sec"
     private const val K_EXERCISES = "exercises_json"
     private const val K_LOGS = "logs_json"
+    private const val K_GRID = "active_grid_v1"
+    private const val K_SOUND = "sound_uri"
+    private const val K_VOLUME = "volume_pct"
+
+    /** Active-hours grid dimensions. Day index 0=Mon .. 6=Sun; hour 0..23. */
+    const val GRID_DAYS = 7
+    const val GRID_HOURS = 24
 
     private val DEFAULT_EXERCISES = listOf(
         "Squats", "Push-ups", "Lunges", "Jumping jacks", "Calf raises", "Plank"
@@ -42,6 +49,54 @@ object Prefs {
 
     fun durationSec(ctx: Context) = sp(ctx).getInt(K_DURATION, 120)   // 2 min
     fun setDurationSec(ctx: Context, v: Int) = sp(ctx).edit().putInt(K_DURATION, v).apply()
+
+    // ---- alarm sound & volume ----
+    /** Ringtone URI string, [AlarmPlayer.SILENT], or null for the system default. */
+    fun soundUri(ctx: Context): String? = sp(ctx).getString(K_SOUND, null)
+    fun setSoundUri(ctx: Context, uri: String?) {
+        val e = sp(ctx).edit()
+        if (uri == null) e.remove(K_SOUND) else e.putString(K_SOUND, uri)
+        e.apply()
+    }
+
+    fun volumePct(ctx: Context) = sp(ctx).getInt(K_VOLUME, 100).coerceIn(0, 100)
+    fun setVolumePct(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(K_VOLUME, v.coerceIn(0, 100)).apply()
+
+    // ---- active-hours grid (7 days x 24 hours) ----
+    /**
+     * Returns the 168-cell active grid (index = dayIdx * 24 + hour, dayIdx 0=Mon..6=Sun).
+     * If none is stored yet, migrates from the legacy start/end window (same window every day).
+     */
+    fun getGrid(ctx: Context): BooleanArray {
+        val raw = sp(ctx).getString(K_GRID, null)
+        if (raw != null && raw.length == GRID_DAYS * GRID_HOURS) {
+            return BooleanArray(raw.length) { raw[it] == '1' }
+        }
+        val startH = (startMin(ctx) / 60).coerceIn(0, 23)
+        val endH = ((endMin(ctx) - 1) / 60).coerceIn(0, 23)
+        val g = BooleanArray(GRID_DAYS * GRID_HOURS)
+        for (d in 0 until GRID_DAYS) for (h in startH..endH) g[d * GRID_HOURS + h] = true
+        setGrid(ctx, g)
+        return g
+    }
+
+    fun setGrid(ctx: Context, grid: BooleanArray) {
+        val sb = StringBuilder(grid.size)
+        for (b in grid) sb.append(if (b) '1' else '0')
+        sp(ctx).edit().putString(K_GRID, sb.toString()).apply()
+    }
+
+    /** Is the reminder currently allowed to fire, per the active-hours grid? */
+    fun isActiveNow(ctx: Context): Boolean = isActiveAt(getGrid(ctx), System.currentTimeMillis())
+
+    fun isActiveAt(grid: BooleanArray, timeMillis: Long): Boolean {
+        val c = Calendar.getInstance().apply { timeInMillis = timeMillis }
+        val dayIdx = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7   // Mon=0 .. Sun=6
+        val hour = c.get(Calendar.HOUR_OF_DAY)
+        val i = dayIdx * GRID_HOURS + hour
+        return i in grid.indices && grid[i]
+    }
 
     // ---- exercise list ----
     fun getExercises(ctx: Context): MutableList<String> {

@@ -22,40 +22,42 @@ object AlarmScheduler {
         )
     }
 
-    /** Next time (epoch millis) the reminder should fire, honouring the active window. */
+    /**
+     * Next time (epoch millis) the reminder should fire, or -1 if no active hours are set.
+     *
+     * Slots are anchored to midnight and spaced every `interval` minutes (e.g. 00:00, 00:30,
+     * 01:00 …). A slot only fires if its (day-of-week, hour) cell is active in the grid, so
+     * we walk forward slot-by-slot until we land in an active cell (searching up to 8 days).
+     */
     fun nextTriggerTime(ctx: Context): Long {
         val interval = Prefs.intervalMin(ctx).coerceAtLeast(1)
-        val startMin = Prefs.startMin(ctx)
-        val endMin = Prefs.endMin(ctx)
-        val now = Calendar.getInstance()
+        val grid = Prefs.getGrid(ctx)
+        if (grid.none { it }) return -1L
 
-        val c = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, startMin / 60)
-            set(Calendar.MINUTE, startMin % 60)
+        val now = System.currentTimeMillis()
+        val midnight = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val intervalMs = interval * 60_000L
+        // first slot strictly after "now"
+        var slot = midnight + ((now - midnight) / intervalMs + 1) * intervalMs
+        val cap = now + 8L * 24 * 60 * 60 * 1000   // don't search forever if grid is sparse
+        while (slot <= cap) {
+            if (Prefs.isActiveAt(grid, slot)) return slot
+            slot += intervalMs
         }
-        // advance to the first slot strictly after "now"
-        while (c.timeInMillis <= now.timeInMillis) {
-            c.add(Calendar.MINUTE, interval)
-        }
-        val slotMinOfDay = c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
-        if (slotMinOfDay > endMin || c.timeInMillis <= now.timeInMillis) {
-            // past the window today -> jump to start time tomorrow
-            c.timeInMillis = now.timeInMillis
-            c.add(Calendar.DAY_OF_YEAR, 1)
-            c.set(Calendar.HOUR_OF_DAY, startMin / 60)
-            c.set(Calendar.MINUTE, startMin % 60)
-            c.set(Calendar.SECOND, 0)
-            c.set(Calendar.MILLISECOND, 0)
-        }
-        return c.timeInMillis
+        return -1L
     }
 
     fun scheduleNext(ctx: Context) {
         if (!Prefs.isEnabled(ctx)) { cancel(ctx); return }
-        val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val triggerAt = nextTriggerTime(ctx)
+        if (triggerAt <= 0L) { cancel(ctx); return }   // no active hours -> nothing to schedule
+        val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pi = pending(ctx)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {

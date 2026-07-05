@@ -1,7 +1,5 @@
 package com.mikefle.exercisesnacks
 
-import android.media.Ringtone
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
@@ -31,7 +29,6 @@ class SnackActivity : AppCompatActivity() {
     private lateinit var chipGroup: ChipGroup
 
     private var timer: CountDownTimer? = null
-    private var ringtone: Ringtone? = null
     private var otherChipId: Int = View.NO_ID
     private var otherText: String? = null
     private var totalSec: Int = 120
@@ -158,16 +155,12 @@ class SnackActivity : AppCompatActivity() {
     }
 
     private fun playStopAlarm() {
-        try {
-            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            ringtone = RingtoneManager.getRingtone(applicationContext, uri).also { it.play() }
-        } catch (_: Exception) { }
+        // Loops the user's chosen sound/volume until they log the snack or leave the screen.
+        AlarmPlayer.startLooping(this)
     }
 
     private fun stopAlarm() {
-        try { ringtone?.stop() } catch (_: Exception) { }
-        ringtone = null
+        AlarmPlayer.stopLooping()
     }
 
     private fun vibrate() {
@@ -181,6 +174,12 @@ class SnackActivity : AppCompatActivity() {
             val pattern = longArrayOf(0, 500, 250, 500)
             vib.vibrate(VibrationEffect.createWaveform(pattern, -1))
         } catch (_: Exception) { }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Don't keep ringing in the background if the user navigates away without logging.
+        stopAlarm()
     }
 
     override fun onDestroy() {

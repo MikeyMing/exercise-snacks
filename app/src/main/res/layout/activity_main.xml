@@ -28,6 +28,26 @@
             android:paddingBottom="8dp" />
 
         <TextView
+            android:id="@+id/tvCountdownCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="Next snack in"
+            android:textSize="16sp"
+            android:paddingTop="12dp" />
+
+        <TextView
+            android:id="@+id/tvCountdown"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="—"
+            android:textSize="52sp"
+            android:textStyle="bold"
+            android:textColor="@color/green_700"
+            android:paddingBottom="8dp" />
+
+        <TextView
             android:id="@+id/tvStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

@@ -8,6 +8,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.widget.Button
 import android.widget.TextView
@@ -24,7 +26,17 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var tvStatus: TextView
     private lateinit var tvWarning: TextView
+    private lateinit var tvCountdown: TextView
+    private lateinit var tvCountdownCaption: TextView
     private lateinit var switchEnabled: SwitchMaterial
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val ticker = object : Runnable {
+        override fun run() {
+            updateCountdown()
+            handler.postDelayed(this, 1000L)
+        }
+    }
 
     private val requestNotif =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { updateStatus() }
@@ -37,6 +49,8 @@ class MainActivity : AppCompatActivity() {
 
         tvStatus = findViewById(R.id.tvStatus)
         tvWarning = findViewById(R.id.tvWarning)
+        tvCountdown = findViewById(R.id.tvCountdown)
+        tvCountdownCaption = findViewById(R.id.tvCountdownCaption)
         switchEnabled = findViewById(R.id.switchEnabled)
 
         switchEnabled.isChecked = Prefs.isEnabled(this)
@@ -64,6 +78,12 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateStatus()
+        handler.post(ticker)          // live countdown ticks while the screen is visible
+    }
+
+    override fun onPause() {
+        super.onPause()
+        handler.removeCallbacks(ticker)
     }
 
     private fun maybeRequestNotifications() {
@@ -80,8 +100,9 @@ class MainActivity : AppCompatActivity() {
         val df = SimpleDateFormat("EEE h:mm a", Locale.getDefault())
         if (Prefs.isEnabled(this)) {
             val next = AlarmScheduler.nextTriggerTime(this)
-            tvStatus.text = "Next snack: ${df.format(Date(next))}\n" +
-                "Every ${Prefs.intervalMin(this)} min, ${fmtTime(Prefs.startMin(this))}–${fmtTime(Prefs.endMin(this))}\n" +
+            val nextStr = if (next > 0L) df.format(Date(next)) else "— (no active hours set)"
+            tvStatus.text = "Next snack: $nextStr\n" +
+                "Every ${Prefs.intervalMin(this)} min during your active hours\n" +
                 "Snack length: ${Prefs.durationSec(this) / 60}m ${Prefs.durationSec(this) % 60}s\n\n" +
                 "Snacks done today: ${Prefs.doneToday(this)}"
         } else {
@@ -106,11 +127,35 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun fmtTime(minOfDay: Int): String {
-        val c = java.util.Calendar.getInstance()
-        c.set(java.util.Calendar.HOUR_OF_DAY, minOfDay / 60)
-        c.set(java.util.Calendar.MINUTE, minOfDay % 60)
-        return SimpleDateFormat("h:mm a", Locale.getDefault()).format(c.time)
+    private fun updateCountdown() {
+        if (!Prefs.isEnabled(this)) {
+            tvCountdownCaption.text = "Reminders are off"
+            tvCountdown.text = "—"
+            return
+        }
+        val next = AlarmScheduler.nextTriggerTime(this)
+        if (next <= 0L) {
+            tvCountdownCaption.text = "No active hours set"
+            tvCountdown.text = "—"
+            return
+        }
+        val remMs = next - System.currentTimeMillis()
+        if (remMs <= 0L) {
+            tvCountdownCaption.text = "Next snack"
+            tvCountdown.text = "now"
+        } else {
+            tvCountdownCaption.text = "Next snack in"
+            tvCountdown.text = fmtRemaining(remMs)
+        }
+    }
+
+    private fun fmtRemaining(ms: Long): String {
+        val totalSec = (ms + 999) / 1000            // round up so it never shows 0:00 while >0
+        val h = totalSec / 3600
+        val m = (totalSec % 3600) / 60
+        val s = totalSec % 60
+        return if (h > 0) String.format(Locale.getDefault(), "%d:%02d:%02d", h, m, s)
+        else String.format(Locale.getDefault(), "%d:%02d", m, s)
     }
 
     private fun openReliabilitySettings() {

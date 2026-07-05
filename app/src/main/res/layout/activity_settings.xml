@@ -48,23 +48,112 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Active hours:"
+            android:text="Active hours"
             android:textSize="16sp"
-            android:paddingTop="12dp" />
+            android:textStyle="bold"
+            android:paddingTop="20dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tap cells to choose when reminders may fire. Tap a day or hour label to toggle the whole row/column."
+            android:textSize="13sp"
+            android:paddingBottom="6dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingBottom="4dp">
+
+            <Button
+                android:id="@+id/btnGridAll"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="12sp"
+                android:text="All" />
+
+            <Button
+                android:id="@+id/btnGridNone"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="12sp"
+                android:text="None" />
+
+            <Button
+                android:id="@+id/btnGridWaking"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textSize="12sp"
+                android:text="7a–9p" />
+        </LinearLayout>
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:id="@+id/gridHost"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </HorizontalScrollView>
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Alarm sound"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingTop="20dp" />
 
         <Button
-            android:id="@+id/btnStartTime"
+            android:id="@+id/btnSound"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Start: 7:00 AM" />
+            android:text="Default alarm sound" />
 
         <Button
-            android:id="@+id/btnEndTime"
+            android:id="@+id/btnTestSound"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="End: 9:00 PM" />
+            android:text="Test sound" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Alarm volume:"
+            android:textSize="16sp"
+            android:paddingTop="16dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <SeekBar
+                android:id="@+id/sbVolume"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="100" />
+
+            <TextView
+                android:id="@+id/tvVolumeValue"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="48dp"
+                android:gravity="end"
+                android:text="100%"
+                android:textSize="16sp"
+                android:paddingStart="12dp" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"
