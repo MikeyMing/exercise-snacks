@@ -22,6 +22,7 @@ object Prefs {
     private const val K_GRID = "active_grid_v1"
     private const val K_SOUND = "sound_uri"
     private const val K_VOLUME = "volume_pct"
+    private const val K_SHOW_STATUS = "show_status_notif"
 
     /** Active-hours grid dimensions. Day index 0=Mon .. 6=Sun; hour 0..23. */
     const val GRID_DAYS = 7
@@ -62,6 +63,10 @@ object Prefs {
     fun volumePct(ctx: Context) = sp(ctx).getInt(K_VOLUME, 100).coerceIn(0, 100)
     fun setVolumePct(ctx: Context, v: Int) =
         sp(ctx).edit().putInt(K_VOLUME, v.coerceIn(0, 100)).apply()
+
+    /** Whether to show the ongoing status-bar notification with the next-snack countdown. */
+    fun showStatus(ctx: Context) = sp(ctx).getBoolean(K_SHOW_STATUS, true)
+    fun setShowStatus(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean(K_SHOW_STATUS, v).apply()
 
     // ---- active-hours grid (7 days x 24 hours) ----
     /**

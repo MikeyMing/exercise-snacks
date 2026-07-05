@@ -55,23 +55,28 @@ object AlarmScheduler {
 
     fun scheduleNext(ctx: Context) {
         if (!Prefs.isEnabled(ctx)) { cancel(ctx); return }
-        val triggerAt = nextTriggerTime(ctx)
-        if (triggerAt <= 0L) { cancel(ctx); return }   // no active hours -> nothing to schedule
         val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val pi = pending(ctx)
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
+        val triggerAt = nextTriggerTime(ctx)
+        if (triggerAt <= 0L) {
+            am.cancel(pending(ctx))   // no active hours -> drop any pending alarm
+        } else {
+            val pi = pending(ctx)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
+                    am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                } else {
+                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+                }
+            } catch (e: SecurityException) {
                 am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
-            } else {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
             }
-        } catch (e: SecurityException) {
-            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
         }
+        StatusNotification.update(ctx)   // keep the ongoing status notification in sync
     }
 
     fun cancel(ctx: Context) {
         val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         am.cancel(pending(ctx))
+        StatusNotification.clear(ctx)
     }
 }

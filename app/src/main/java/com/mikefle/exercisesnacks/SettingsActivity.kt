@@ -18,6 +18,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.google.android.material.switchmaterial.SwitchMaterial
 import java.util.Locale
 
 class SettingsActivity : AppCompatActivity() {
@@ -28,6 +29,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var btnSound: Button
     private lateinit var sbVolume: SeekBar
     private lateinit var tvVolumeValue: TextView
+    private lateinit var switchStatusNotif: SwitchMaterial
     private lateinit var llExercises: LinearLayout
     private lateinit var etNewExercise: EditText
 
@@ -71,6 +73,7 @@ class SettingsActivity : AppCompatActivity() {
         btnSound = findViewById(R.id.btnSound)
         sbVolume = findViewById(R.id.sbVolume)
         tvVolumeValue = findViewById(R.id.tvVolumeValue)
+        switchStatusNotif = findViewById(R.id.switchStatusNotif)
         llExercises = findViewById(R.id.llExercises)
         etNewExercise = findViewById(R.id.etNewExercise)
 
@@ -100,6 +103,8 @@ class SettingsActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(sb: SeekBar?) {}
             override fun onStopTrackingTouch(sb: SeekBar?) {}
         })
+
+        switchStatusNotif.isChecked = Prefs.showStatus(this)
 
         exercises.addAll(Prefs.getExercises(this))
         renderExercises()
@@ -295,8 +300,9 @@ class SettingsActivity : AppCompatActivity() {
         Prefs.setGrid(this, grid)
         Prefs.setSoundUri(this, soundSel)
         Prefs.setVolumePct(this, sbVolume.progress)
+        Prefs.setShowStatus(this, switchStatusNotif.isChecked)
         Prefs.setExercises(this, exercises)
-        if (Prefs.isEnabled(this)) AlarmScheduler.scheduleNext(this)
+        if (Prefs.isEnabled(this)) AlarmScheduler.scheduleNext(this) else StatusNotification.clear(this)
 
         if (grid.none { it }) {
             Toast.makeText(this, "Saved — note: no active hours selected, so no reminders will fire", Toast.LENGTH_LONG).show()

@@ -10,10 +10,13 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -78,6 +81,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateStatus()
+        StatusNotification.update(this)   // refresh the ongoing notification (perm/done-count changes)
         handler.post(ticker)          // live countdown ticks while the screen is visible
     }
 
@@ -159,24 +163,73 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openReliabilitySettings() {
-        // First, exact-alarm access if needed.
+        // Build the list of things that still need fixing, each with its own action.
+        val needs = ArrayList<Pair<String, () -> Unit>>()
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
             if (!am.canScheduleExactAlarms()) {
-                try {
-                    startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
-                    return
-                } catch (_: Exception) { /* fall through */ }
+                needs.add("Allow exact alarms" to {
+                    launchIntent(
+                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:$packageName")),
+                        Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                    )
+                })
             }
         }
-        // Otherwise, offer to ignore battery optimisation.
-        try {
-            val i = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-            i.data = Uri.parse("package:$packageName")
-            startActivity(i)
-        } catch (_: Exception) {
-            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                Uri.parse("package:$packageName")))
+
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            needs.add("Ignore battery optimisation" to {
+                // Needs the REQUEST_IGNORE_BATTERY_OPTIMIZATIONS permission (declared in the manifest);
+                // without it this screen silently closes. Fall back to the full battery list.
+                launchIntent(
+                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")),
+                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                )
+            })
         }
+
+        if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) {
+            needs.add("Turn on notifications" to { openAppSettings() })
+        }
+
+        if (needs.isEmpty()) {
+            Toast.makeText(
+                this,
+                "You're all set — exact alarms, battery exemption and notifications are already enabled.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        // Always give a manual escape hatch as the last option.
+        needs.add("Open app settings" to { openAppSettings() })
+
+        val labels = needs.map { it.first }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Improve reliability")
+            .setItems(labels) { _, which -> needs[which].second.invoke() }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun openAppSettings() {
+        launchIntent(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+    }
+
+    /** Try [primary]; on failure try [fallback]; if both fail, tell the user instead of failing silently. */
+    private fun launchIntent(primary: Intent, fallback: Intent? = null) {
+        try {
+            startActivity(primary)
+            return
+        } catch (_: Exception) { /* try fallback */ }
+        if (fallback != null) {
+            try {
+                startActivity(fallback)
+                return
+            } catch (_: Exception) { /* fall through to toast */ }
+        }
+        Toast.makeText(this, "Couldn't open that settings screen on this device", Toast.LENGTH_SHORT).show()
     }
 }
