@@ -120,12 +120,13 @@ object Prefs {
     }
 
     // ---- log history ----
-    fun addLog(ctx: Context, exercise: String, done: Boolean) {
+    fun addLog(ctx: Context, exercise: String, done: Boolean, durationSec: Int) {
         val arr = rawLogs(ctx)
         val obj = JSONObject()
         obj.put("ts", System.currentTimeMillis())
         obj.put("exercise", exercise)
         obj.put("done", done)
+        obj.put("dur", durationSec)          // seconds actually exercised
         arr.put(obj)
         sp(ctx).edit().putString(K_LOGS, arr.toString()).apply()
     }
@@ -135,7 +136,14 @@ object Prefs {
         val out = ArrayList<LogEntry>()
         for (i in 0 until arr.length()) {
             val o = arr.getJSONObject(i)
-            out.add(LogEntry(o.getLong("ts"), o.optString("exercise", ""), o.optBoolean("done", true)))
+            out.add(
+                LogEntry(
+                    o.getLong("ts"),
+                    o.optString("exercise", ""),
+                    o.optBoolean("done", true),
+                    o.optInt("dur", 0)          // older logs had no duration
+                )
+            )
         }
         out.sortByDescending { it.ts }
         return out
@@ -143,13 +151,36 @@ object Prefs {
 
     fun clearLogs(ctx: Context) = sp(ctx).edit().remove(K_LOGS).apply()
 
-    fun doneToday(ctx: Context): Int {
-        val startOfDay = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-        return getLogs(ctx).count { it.done && it.ts >= startOfDay }
+    fun doneToday(ctx: Context): Int =
+        getLogs(ctx).count { it.done && it.ts >= startOfToday() }
+
+    /** Seconds of completed exercise logged so far today. */
+    fun secondsDoneToday(ctx: Context): Int =
+        getLogs(ctx).filter { it.done && it.ts >= startOfToday() }.sumOf { it.durationSec }
+
+    /**
+     * Seconds of completed exercise per day for the last 7 days.
+     * Index 0 = 6 days ago … index 6 = today. Uses calendar-day boundaries (DST-safe).
+     */
+    fun weeklySecondsByDay(ctx: Context): IntArray {
+        val logs = getLogs(ctx).filter { it.done }
+        val out = IntArray(7)
+        for (i in 0 until 7) {
+            val c = midnight().apply { add(Calendar.DAY_OF_YEAR, -(6 - i)) }
+            val from = c.timeInMillis
+            c.add(Calendar.DAY_OF_YEAR, 1)
+            val to = c.timeInMillis
+            out[i] = logs.filter { it.ts in from until to }.sumOf { it.durationSec }
+        }
+        return out
     }
+
+    private fun midnight(): Calendar = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }
+
+    private fun startOfToday(): Long = midnight().timeInMillis
 
     private fun rawLogs(ctx: Context): JSONArray {
         val raw = sp(ctx).getString(K_LOGS, null) ?: return JSONArray()
@@ -157,4 +188,4 @@ object Prefs {
     }
 }
 
-data class LogEntry(val ts: Long, val exercise: String, val done: Boolean)
+data class LogEntry(val ts: Long, val exercise: String, val done: Boolean, val durationSec: Int = 0)

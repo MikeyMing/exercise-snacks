@@ -65,6 +65,30 @@
             android:visibility="gone"
             android:paddingBottom="16dp" />
 
+        <TextView
+            android:id="@+id/tvMinutesToday"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="0 min of exercise today"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/green_700"
+            android:paddingTop="4dp"
+            android:paddingBottom="2dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="This week (minutes per day)"
+            android:textSize="13sp" />
+
+        <com.mikefle.exercisesnacks.WeekBarView
+            android:id="@+id/weekBar"
+            android:layout_width="match_parent"
+            android:layout_height="132dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp" />
+
         <Button
             android:id="@+id/btnStartNow"
             android:layout_width="match_parent"

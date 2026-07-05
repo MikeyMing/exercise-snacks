@@ -42,7 +42,14 @@ class HistoryActivity : AppCompatActivity() {
         val pad = (16 * resources.displayMetrics.density).toInt()
         for (e in logs) {
             val row = TextView(this).apply {
-                text = "${if (e.done) "✅" else "❌"}  ${df.format(Date(e.ts))}  —  ${e.exercise}"
+                text = buildString {
+                    append(if (e.done) "✅" else "❌")
+                    append("  ").append(df.format(Date(e.ts)))
+                    append("  —  ").append(e.exercise)
+                    if (e.done && e.durationSec > 0) {
+                        append("  ·  ").append(e.durationSec / 60).append("m ").append(e.durationSec % 60).append("s")
+                    }
+                }
                 textSize = 16f
                 setPadding(pad, pad / 2, pad, pad / 2)
                 gravity = Gravity.START

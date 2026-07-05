@@ -166,6 +166,21 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:text="History"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingTop="20dp" />
+
+        <Button
+            android:id="@+id/btnExportHistory"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Download all history (CSV)" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:text="Exercises to choose from:"
             android:textSize="16sp"
             android:textStyle="bold"

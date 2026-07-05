@@ -1,8 +1,10 @@
 package com.mikefle.exercisesnacks
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.CountDownTimer
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -32,6 +34,8 @@ class SnackActivity : AppCompatActivity() {
     private var otherChipId: Int = View.NO_ID
     private var otherText: String? = null
     private var totalSec: Int = 120
+    private var snackStartMs: Long = 0L      // elapsedRealtime when the snack countdown began
+    private var elapsedSec: Int = 0          // actual seconds exercised, captured at stop
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,10 +73,30 @@ class SnackActivity : AppCompatActivity() {
         startCountdown()
     }
 
+    /**
+     * A new reminder can arrive while this screen is still on top (singleTop). Restart the snack
+     * from scratch so per-snack state (start time, elapsed, selection) never carries over.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        timer?.cancel()
+        timer = null
+        stopAlarm()
+        NotificationManagerCompat.from(this).cancel(ReminderReceiver.NOTIF_ID)
+        elapsedSec = 0
+        otherText = null
+        totalSec = Prefs.durationSec(this).coerceAtLeast(5)
+        chipGroup.removeAllViews()
+        buildChips()
+        startCountdown()
+    }
+
     private fun startCountdown() {
         layoutCountdown.visibility = View.VISIBLE
         layoutLog.visibility = View.GONE
         tvSnackTitle.text = "Exercise snack — go!"
+        snackStartMs = SystemClock.elapsedRealtime()
         timer = object : CountDownTimer(totalSec * 1000L, 250L) {
             override fun onTick(msLeft: Long) {
                 val s = ((msLeft + 500) / 1000).toInt()
@@ -85,10 +109,13 @@ class SnackActivity : AppCompatActivity() {
         }.start()
     }
 
-    /** Time's up (or stopped early): sound the stop alarm and show the log prompt. */
+    /** Time's up (or stopped early): record elapsed time, sound the stop alarm, show the log prompt. */
     private fun finishSnack() {
         timer?.cancel()
         timer = null
+        elapsedSec = if (snackStartMs > 0L) {
+            ((SystemClock.elapsedRealtime() - snackStartMs) / 1000L).toInt().coerceIn(0, totalSec)
+        } else totalSec
         playStopAlarm()
         vibrate()
         layoutCountdown.visibility = View.GONE
@@ -144,7 +171,7 @@ class SnackActivity : AppCompatActivity() {
             id == otherChipId -> otherText?.takeIf { it.isNotBlank() } ?: "Other"
             else -> findViewById<Chip>(id)?.text?.toString() ?: "(unspecified)"
         }
-        Prefs.addLog(this, exercise, done)
+        Prefs.addLog(this, exercise, done, if (done) elapsedSec else 0)
         stopAlarm()
         Toast.makeText(
             this,

@@ -22,6 +22,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.google.android.material.switchmaterial.SwitchMaterial
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -31,6 +32,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvWarning: TextView
     private lateinit var tvCountdown: TextView
     private lateinit var tvCountdownCaption: TextView
+    private lateinit var tvMinutesToday: TextView
+    private lateinit var weekBar: WeekBarView
     private lateinit var switchEnabled: SwitchMaterial
 
     private val handler = Handler(Looper.getMainLooper())
@@ -54,6 +57,8 @@ class MainActivity : AppCompatActivity() {
         tvWarning = findViewById(R.id.tvWarning)
         tvCountdown = findViewById(R.id.tvCountdown)
         tvCountdownCaption = findViewById(R.id.tvCountdownCaption)
+        tvMinutesToday = findViewById(R.id.tvMinutesToday)
+        weekBar = findViewById(R.id.weekBar)
         switchEnabled = findViewById(R.id.switchEnabled)
 
         switchEnabled.isChecked = Prefs.isEnabled(this)
@@ -81,8 +86,26 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateStatus()
+        updateStats()
         StatusNotification.update(this)   // refresh the ongoing notification (perm/done-count changes)
         handler.post(ticker)          // live countdown ticks while the screen is visible
+    }
+
+    private fun updateStats() {
+        val minToday = Math.round(Prefs.secondsDoneToday(this) / 60f)
+        tvMinutesToday.text = "$minToday min of exercise today"
+
+        val values = Prefs.weeklySecondsByDay(this)
+        val dayFmt = SimpleDateFormat("EEE", Locale.getDefault())
+        val labels = Array(7) { i ->
+            val c = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                add(Calendar.DAY_OF_YEAR, -(6 - i))
+            }
+            dayFmt.format(c.time)
+        }
+        weekBar.setData(values, labels)
     }
 
     override fun onPause() {

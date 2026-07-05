@@ -19,6 +19,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.material.switchmaterial.SwitchMaterial
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class SettingsActivity : AppCompatActivity() {
@@ -44,6 +46,11 @@ class SettingsActivity : AppCompatActivity() {
 
     // Sound selection: null = system default, AlarmPlayer.SILENT, or a ringtone uri string.
     private var soundSel: String? = null
+
+    private val exportHistory =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+            if (uri != null) writeHistoryCsv(uri)
+        }
 
     private val soundPicker =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
@@ -105,6 +112,14 @@ class SettingsActivity : AppCompatActivity() {
         })
 
         switchStatusNotif.isChecked = Prefs.showStatus(this)
+
+        findViewById<Button>(R.id.btnExportHistory).setOnClickListener {
+            try {
+                exportHistory.launch("exercise-snacks-history.csv")
+            } catch (e: Exception) {
+                Toast.makeText(this, "Couldn't open the file picker on this device", Toast.LENGTH_SHORT).show()
+            }
+        }
 
         exercises.addAll(Prefs.getExercises(this))
         renderExercises()
@@ -248,6 +263,40 @@ class SettingsActivity : AppCompatActivity() {
             Toast.makeText(this, "No ringtone picker available on this device", Toast.LENGTH_SHORT).show()
         }
     }
+
+    // ---------- history export ----------
+
+    private fun writeHistoryCsv(uri: Uri) {
+        try {
+            val isoFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+            val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+            val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
+            val sb = StringBuilder()
+            sb.append("timestamp_iso,date,time,exercise,did_it,duration_seconds,duration_minutes\n")
+            // Export oldest-first for a natural chronological file.
+            for (e in Prefs.getLogs(this).sortedBy { it.ts }) {
+                val d = Date(e.ts)
+                sb.append(isoFmt.format(d)).append(',')
+                    .append(dateFmt.format(d)).append(',')
+                    .append(timeFmt.format(d)).append(',')
+                    .append(csvEscape(e.exercise)).append(',')
+                    .append(if (e.done) "yes" else "no").append(',')
+                    .append(e.durationSec).append(',')
+                    .append(String.format(Locale.US, "%.1f", e.durationSec / 60.0))
+                    .append('\n')
+            }
+            contentResolver.openOutputStream(uri)?.use { it.write(sb.toString().toByteArray(Charsets.UTF_8)) }
+                ?: throw IllegalStateException("no output stream")
+            Toast.makeText(this, "History exported", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun csvEscape(s: String): String =
+        if (s.any { it == ',' || it == '"' || it == '\n' || it == '\r' }) {
+            "\"" + s.replace("\"", "\"\"") + "\""
+        } else s
 
     // ---------- exercises ----------
 
