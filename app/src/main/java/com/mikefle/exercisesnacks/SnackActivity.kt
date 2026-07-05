@@ -29,6 +29,7 @@ class SnackActivity : AppCompatActivity() {
     private lateinit var layoutCountdown: LinearLayout
     private lateinit var layoutLog: LinearLayout
     private lateinit var chipGroup: ChipGroup
+    private lateinit var etReps: EditText
 
     private var timer: CountDownTimer? = null
     private var otherChipId: Int = View.NO_ID
@@ -63,6 +64,7 @@ class SnackActivity : AppCompatActivity() {
         layoutCountdown = findViewById(R.id.layoutCountdown)
         layoutLog = findViewById(R.id.layoutLog)
         chipGroup = findViewById(R.id.chipGroupExercises)
+        etReps = findViewById(R.id.etReps)
 
         findViewById<Button>(R.id.btnStopEarly).setOnClickListener { finishSnack() }
         findViewById<Button>(R.id.btnLogDone).setOnClickListener { save(true) }
@@ -86,6 +88,7 @@ class SnackActivity : AppCompatActivity() {
         NotificationManagerCompat.from(this).cancel(ReminderReceiver.NOTIF_ID)
         elapsedSec = 0
         otherText = null
+        etReps.setText("")
         totalSec = Prefs.durationSec(this).coerceAtLeast(5)
         chipGroup.removeAllViews()
         buildChips()
@@ -171,7 +174,8 @@ class SnackActivity : AppCompatActivity() {
             id == otherChipId -> otherText?.takeIf { it.isNotBlank() } ?: "Other"
             else -> findViewById<Chip>(id)?.text?.toString() ?: "(unspecified)"
         }
-        Prefs.addLog(this, exercise, done, if (done) elapsedSec else 0)
+        val reps = etReps.text.toString().trim().toIntOrNull()?.takeIf { it > 0 } ?: 0
+        Prefs.addLog(this, exercise, done, if (done) elapsedSec else 0, if (done) reps else 0)
         stopAlarm()
         Toast.makeText(
             this,

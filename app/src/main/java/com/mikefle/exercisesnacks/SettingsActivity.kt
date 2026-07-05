@@ -272,7 +272,7 @@ class SettingsActivity : AppCompatActivity() {
             val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
             val sb = StringBuilder()
-            sb.append("timestamp_iso,date,time,exercise,did_it,duration_seconds,duration_minutes\n")
+            sb.append("timestamp_iso,date,time,exercise,reps,did_it,duration_seconds,duration_minutes\n")
             // Export oldest-first for a natural chronological file.
             for (e in Prefs.getLogs(this).sortedBy { it.ts }) {
                 val d = Date(e.ts)
@@ -280,6 +280,7 @@ class SettingsActivity : AppCompatActivity() {
                     .append(dateFmt.format(d)).append(',')
                     .append(timeFmt.format(d)).append(',')
                     .append(csvEscape(e.exercise)).append(',')
+                    .append(if (e.reps > 0) e.reps.toString() else "").append(',')
                     .append(if (e.done) "yes" else "no").append(',')
                     .append(e.durationSec).append(',')
                     .append(String.format(Locale.US, "%.1f", e.durationSec / 60.0))

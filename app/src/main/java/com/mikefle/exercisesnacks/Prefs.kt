@@ -120,13 +120,14 @@ object Prefs {
     }
 
     // ---- log history ----
-    fun addLog(ctx: Context, exercise: String, done: Boolean, durationSec: Int) {
+    fun addLog(ctx: Context, exercise: String, done: Boolean, durationSec: Int, reps: Int = 0) {
         val arr = rawLogs(ctx)
         val obj = JSONObject()
         obj.put("ts", System.currentTimeMillis())
         obj.put("exercise", exercise)
         obj.put("done", done)
         obj.put("dur", durationSec)          // seconds actually exercised
+        obj.put("reps", reps)                // optional rep count, 0 = unspecified
         arr.put(obj)
         sp(ctx).edit().putString(K_LOGS, arr.toString()).apply()
     }
@@ -141,7 +142,8 @@ object Prefs {
                     o.getLong("ts"),
                     o.optString("exercise", ""),
                     o.optBoolean("done", true),
-                    o.optInt("dur", 0)          // older logs had no duration
+                    o.optInt("dur", 0),         // older logs had no duration
+                    o.optInt("reps", 0)         // older logs had no reps
                 )
             )
         }
@@ -188,4 +190,10 @@ object Prefs {
     }
 }
 
-data class LogEntry(val ts: Long, val exercise: String, val done: Boolean, val durationSec: Int = 0)
+data class LogEntry(
+    val ts: Long,
+    val exercise: String,
+    val done: Boolean,
+    val durationSec: Int = 0,
+    val reps: Int = 0
+)

@@ -60,7 +60,16 @@
             android:id="@+id/chipGroupExercises"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingBottom="16dp" />
+            android:paddingBottom="8dp" />
+
+        <EditText
+            android:id="@+id/etReps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:maxLength="5"
+            android:hint="Reps (optional)"
+            android:paddingBottom="12dp" />
 
         <Button
             android:id="@+id/btnLogDone"

@@ -46,6 +46,7 @@ class HistoryActivity : AppCompatActivity() {
                     append(if (e.done) "✅" else "❌")
                     append("  ").append(df.format(Date(e.ts)))
                     append("  —  ").append(e.exercise)
+                    if (e.reps > 0) append("  ×").append(e.reps)
                     if (e.done && e.durationSec > 0) {
                         append("  ·  ").append(e.durationSec / 60).append("m ").append(e.durationSec % 60).append("s")
                     }
