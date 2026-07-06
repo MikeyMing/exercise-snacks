@@ -20,7 +20,9 @@ class SnackActionReceiver : BroadcastReceiver() {
         val excuse = RemoteInput.getResultsFromIntent(intent)
             ?.getCharSequence(KEY_EXCUSE)?.toString()?.trim().orEmpty()
 
-        AlarmPlayer.stopRinging()
+        AlarmPlayer.stopLooping()   // silence the foreground-service ring immediately
+        AlarmPlayer.stopRinging()   // silence the fallback ring (no-op if inactive)
+        AlarmService.stop(context)  // tear down the service (onDestroy also stops looping)
         Prefs.addLog(context, "(skipped)", done = false, durationSec = 0, reps = 0, note = excuse)
         NotificationManagerCompat.from(context).cancel(ReminderReceiver.NOTIF_ID)
 

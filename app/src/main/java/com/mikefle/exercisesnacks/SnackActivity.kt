@@ -56,9 +56,11 @@ class SnackActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_snack)
 
-        // Clear the reminder notification that opened us, and silence its ring.
+        // Clear the reminder notification that opened us, and silence its ring immediately.
         NotificationManagerCompat.from(this).cancel(ReminderReceiver.NOTIF_ID)
-        AlarmPlayer.stopRinging()
+        AlarmPlayer.stopLooping()   // silence the foreground-service ring now (not async)
+        AlarmPlayer.stopRinging()   // silence the fallback ring (no-op if inactive)
+        AlarmService.stop(this)
 
         tvCountdown = findViewById(R.id.tvCountdown)
         tvSnackTitle = findViewById(R.id.tvSnackTitle)
@@ -87,6 +89,7 @@ class SnackActivity : AppCompatActivity() {
         timer = null
         stopAlarm()
         AlarmPlayer.stopRinging()
+        AlarmService.stop(this)
         NotificationManagerCompat.from(this).cancel(ReminderReceiver.NOTIF_ID)
         elapsedSec = 0
         otherText = null

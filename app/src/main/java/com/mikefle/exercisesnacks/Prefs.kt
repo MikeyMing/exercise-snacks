@@ -65,8 +65,9 @@ object Prefs {
     fun setVolumePct(ctx: Context, v: Int) =
         sp(ctx).edit().putInt(K_VOLUME, v.coerceIn(0, 100)).apply()
 
-    /** How long the alarm rings, in seconds. Capped at 10 (reminder plays from a receiver). */
-    const val ALARM_LEN_MAX = 10
+    /** How long the alarm rings, in seconds. The foreground service supports the full range;
+     *  if the OS blocks the service, the reminder falls back to a ~10s ring. */
+    const val ALARM_LEN_MAX = 60
     fun alarmLenSec(ctx: Context) = sp(ctx).getInt(K_ALARM_LEN, 5).coerceIn(1, ALARM_LEN_MAX)
     fun setAlarmLenSec(ctx: Context, v: Int) =
         sp(ctx).edit().putInt(K_ALARM_LEN, v.coerceIn(1, ALARM_LEN_MAX)).apply()
