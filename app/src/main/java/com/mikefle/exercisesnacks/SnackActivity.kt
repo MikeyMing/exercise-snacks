@@ -56,8 +56,9 @@ class SnackActivity : AppCompatActivity() {
 
         setContentView(R.layout.activity_snack)
 
-        // Clear the reminder notification that opened us.
+        // Clear the reminder notification that opened us, and silence its ring.
         NotificationManagerCompat.from(this).cancel(ReminderReceiver.NOTIF_ID)
+        AlarmPlayer.stopRinging()
 
         tvCountdown = findViewById(R.id.tvCountdown)
         tvSnackTitle = findViewById(R.id.tvSnackTitle)
@@ -68,7 +69,7 @@ class SnackActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnStopEarly).setOnClickListener { finishSnack() }
         findViewById<Button>(R.id.btnLogDone).setOnClickListener { save(true) }
-        findViewById<Button>(R.id.btnLogSkip).setOnClickListener { save(false) }
+        findViewById<Button>(R.id.btnLogSkip).setOnClickListener { promptSkipReason() }
 
         totalSec = Prefs.durationSec(this).coerceAtLeast(5)
         buildChips()
@@ -85,6 +86,7 @@ class SnackActivity : AppCompatActivity() {
         timer?.cancel()
         timer = null
         stopAlarm()
+        AlarmPlayer.stopRinging()
         NotificationManagerCompat.from(this).cancel(ReminderReceiver.NOTIF_ID)
         elapsedSec = 0
         otherText = null
@@ -167,7 +169,20 @@ class SnackActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun save(done: Boolean) {
+    private fun promptSkipReason() {
+        val input = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            hint = "Reason (optional)"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Skip this snack?")
+            .setView(input)
+            .setPositiveButton("Skip") { _, _ -> save(false, input.text.toString().trim()) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun save(done: Boolean, note: String = "") {
         val id = chipGroup.checkedChipId
         val exercise = when {
             id == View.NO_ID -> "(unspecified)"
@@ -175,7 +190,7 @@ class SnackActivity : AppCompatActivity() {
             else -> findViewById<Chip>(id)?.text?.toString() ?: "(unspecified)"
         }
         val reps = etReps.text.toString().trim().toIntOrNull()?.takeIf { it > 0 } ?: 0
-        Prefs.addLog(this, exercise, done, if (done) elapsedSec else 0, if (done) reps else 0)
+        Prefs.addLog(this, exercise, done, if (done) elapsedSec else 0, if (done) reps else 0, note)
         stopAlarm()
         Toast.makeText(
             this,
@@ -186,8 +201,8 @@ class SnackActivity : AppCompatActivity() {
     }
 
     private fun playStopAlarm() {
-        // Loops the user's chosen sound/volume until they log the snack or leave the screen.
-        AlarmPlayer.startLooping(this)
+        // Ring the user's chosen sound/volume for the configured length (or until they log / leave).
+        AlarmPlayer.startLooping(this, Prefs.alarmLenSec(this) * 1000L)
     }
 
     private fun stopAlarm() {

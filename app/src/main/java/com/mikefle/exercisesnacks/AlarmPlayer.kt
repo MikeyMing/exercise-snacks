@@ -21,7 +21,10 @@ object AlarmPlayer {
 
     private val handler = Handler(Looper.getMainLooper())
     private var looper: MediaPlayer? = null    // looping "stop" alarm (SnackActivity)
+    private var loopTimeout: Runnable? = null
     private var preview: MediaPlayer? = null   // one-shot Settings preview (stoppable)
+    private var ringing: MediaPlayer? = null   // reminder ring (looped for a fixed length)
+    private var ringFinish: (() -> Unit)? = null
 
     private fun alarmAttrs() = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_ALARM)
@@ -40,35 +43,27 @@ object AlarmPlayer {
 
     fun volumeScalar(ctx: Context): Float = Prefs.volumePct(ctx).coerceIn(0, 100) / 100f
 
-    /**
-     * One-shot playback. [onDone] is ALWAYS invoked exactly once — on completion, error,
-     * timeout, or if playback can't start — so callers can safely balance a goAsync() result.
-     * When [track] is true the player is stored in [preview] so it can be cancelled/replaced
-     * (used by the Settings "Test" button).
-     */
+    // ---------- one-shot preview (Settings "Test") ----------
+
     private fun playOneShot(
         ctx: Context, uri: Uri?, vol: Float, track: Boolean, maxMs: Long, onDone: () -> Unit
     ) {
         if (vol <= 0f || uri == null) { onDone(); return }
-
         val player: MediaPlayer
         try {
             player = MediaPlayer()
             player.setAudioAttributes(alarmAttrs())
             player.setDataSource(ctx.applicationContext, uri)
             player.setVolume(vol, vol)
-        } catch (e: Exception) {
-            onDone(); return
-        }
+        } catch (e: Exception) { onDone(); return }
 
         if (track) { stopPreview(); preview = player }
-
         var finished = false
         var timeout: Runnable? = null
         val finish = {
             if (!finished) {
                 finished = true
-                timeout?.let { handler.removeCallbacks(it) }   // don't leave the cap runnable lingering
+                timeout?.let { handler.removeCallbacks(it) }
                 if (track && preview === player) preview = null
                 try { player.stop() } catch (_: Exception) {}
                 try { player.release() } catch (_: Exception) {}
@@ -77,13 +72,12 @@ object AlarmPlayer {
         }
         val cap = Runnable { finish() }
         timeout = cap
-
         player.setOnPreparedListener { runCatching { it.start() } }
         player.setOnCompletionListener { finish() }
         player.setOnErrorListener { _, _, _ -> finish(); true }
         try {
             player.prepareAsync()
-            handler.postDelayed(cap, maxMs)   // safety cap so goAsync always finishes
+            handler.postDelayed(cap, maxMs)
         } catch (e: Exception) {
             if (track && preview === player) preview = null
             try { player.release() } catch (_: Exception) {}
@@ -91,15 +85,10 @@ object AlarmPlayer {
         }
     }
 
-    /** Play the currently-saved sound/volume once (used by the reminder BroadcastReceiver). */
-    fun playOnce(ctx: Context, maxMs: Long = 9000L, onDone: () -> Unit) =
-        playOneShot(ctx, resolveUri(ctx), volumeScalar(ctx), track = false, maxMs = maxMs, onDone = onDone)
-
     /** Preview arbitrary (possibly unsaved) settings once — used by the Settings "Test" button. */
     fun preview(ctx: Context, soundUriStr: String?, volumePct: Int) =
         playOneShot(ctx, resolveUriFrom(soundUriStr), volumePct.coerceIn(0, 100) / 100f, track = true, maxMs = 9000L) {}
 
-    /** Stop any in-progress preview (call when leaving Settings). */
     fun stopPreview() {
         val p = preview ?: return
         preview = null
@@ -107,8 +96,65 @@ object AlarmPlayer {
         try { p.release() } catch (_: Exception) {}
     }
 
-    /** Looping playback (used for the "stop" alarm inside SnackActivity). Call [stopLooping] to end. */
-    fun startLooping(ctx: Context) {
+    // ---------- reminder ring (looped for a fixed length; used from the BroadcastReceiver) ----------
+
+    /**
+     * Loop the alarm sound for [maxMs] ms, then stop. [onDone] is ALWAYS invoked exactly once
+     * (at the end, on error, or if it can't start) so a goAsync() result can be balanced.
+     * [stopRinging] ends it early (e.g. the user skips or opens the snack).
+     */
+    fun playRinging(ctx: Context, maxMs: Long, onDone: () -> Unit) {
+        stopRinging()
+        val vol = volumeScalar(ctx)
+        val uri = resolveUri(ctx)
+        if (vol <= 0f || uri == null) { onDone(); return }
+        val player: MediaPlayer
+        try {
+            player = MediaPlayer()
+            player.setAudioAttributes(alarmAttrs())
+            player.setDataSource(ctx.applicationContext, uri)
+            player.isLooping = true
+            player.setVolume(vol, vol)
+        } catch (e: Exception) { onDone(); return }
+
+        ringing = player
+        var finished = false
+        var timeout: Runnable? = null
+        val finish = {
+            if (!finished) {
+                finished = true
+                timeout?.let { handler.removeCallbacks(it) }
+                if (ringing === player) ringing = null
+                ringFinish = null
+                try { player.stop() } catch (_: Exception) {}
+                try { player.release() } catch (_: Exception) {}
+                onDone()
+            }
+        }
+        ringFinish = finish
+        val cap = Runnable { finish() }
+        timeout = cap
+        player.setOnPreparedListener { runCatching { it.start() } }
+        player.setOnErrorListener { _, _, _ -> finish(); true }
+        try {
+            player.prepareAsync()
+            handler.postDelayed(cap, maxMs)
+        } catch (e: Exception) {
+            if (ringing === player) ringing = null
+            ringFinish = null
+            try { player.release() } catch (_: Exception) {}
+            onDone()
+        }
+    }
+
+    fun stopRinging() {
+        ringFinish?.invoke()
+    }
+
+    // ---------- looping "stop" alarm (SnackActivity) ----------
+
+    /** Loop until [stopLooping]; if [maxMs] > 0, auto-stops after that many ms. */
+    fun startLooping(ctx: Context, maxMs: Long = 0L) {
         stopLooping()
         val vol = volumeScalar(ctx)
         val uri = resolveUri(ctx)
@@ -125,10 +171,18 @@ object AlarmPlayer {
             }
         } catch (e: Exception) {
             looper = null
+            return
+        }
+        if (maxMs > 0L) {
+            val t = Runnable { stopLooping() }
+            loopTimeout = t
+            handler.postDelayed(t, maxMs)
         }
     }
 
     fun stopLooping() {
+        loopTimeout?.let { handler.removeCallbacks(it) }
+        loopTimeout = null
         val p = looper ?: return
         looper = null
         try { p.stop() } catch (_: Exception) {}

@@ -50,6 +50,7 @@ class HistoryActivity : AppCompatActivity() {
                     if (e.done && e.durationSec > 0) {
                         append("  ·  ").append(e.durationSec / 60).append("m ").append(e.durationSec % 60).append("s")
                     }
+                    if (e.note.isNotBlank()) append("  ·  ").append(e.note)
                 }
                 textSize = 16f
                 setPadding(pad, pad / 2, pad, pad / 2)

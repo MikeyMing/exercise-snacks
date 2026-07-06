@@ -6,8 +6,10 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.RemoteInput
 
 class ReminderReceiver : BroadcastReceiver() {
 
@@ -27,6 +29,22 @@ class ReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // "Skip" action with an inline optional excuse (RemoteInput needs a MUTABLE PendingIntent).
+        val remoteInput = RemoteInput.Builder(SnackActionReceiver.KEY_EXCUSE)
+            .setLabel("Reason (optional)")
+            .build()
+        val skipIntent = Intent(context, SnackActionReceiver::class.java)
+            .setAction(SnackActionReceiver.ACTION_SKIP)
+        val skipFlags =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            else PendingIntent.FLAG_UPDATE_CURRENT
+        val skipPending = PendingIntent.getBroadcast(context, 1002, skipIntent, skipFlags)
+        val skipAction = NotificationCompat.Action.Builder(0, "Skip", skipPending)
+            .addRemoteInput(remoteInput)
+            .setAllowGeneratedReplies(false)
+            .build()
+
         val durSec = Prefs.durationSec(context)
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_snack)
@@ -37,6 +55,7 @@ class ReminderReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .setFullScreenIntent(pi, true)
             .setContentIntent(pi)
+            .addAction(skipAction)
 
         try {
             NotificationManagerCompat.from(context).notify(NOTIF_ID, builder.build())
@@ -44,10 +63,11 @@ class ReminderReceiver : BroadcastReceiver() {
             // POST_NOTIFICATIONS not granted yet; the alarm sound below still plays.
         }
 
-        // Play the user's chosen sound at the chosen volume. goAsync() keeps this
-        // receiver alive until playback finishes (AlarmPlayer always calls back).
+        // Ring the chosen sound at the chosen volume for the configured length.
+        // goAsync() keeps this receiver alive until playback finishes (AlarmPlayer always calls back).
+        val lenMs = Prefs.alarmLenSec(context) * 1000L
         val result = goAsync()
-        AlarmPlayer.playOnce(context) { result.finish() }
+        AlarmPlayer.playRinging(context, lenMs) { result.finish() }
     }
 
     private fun formatDur(sec: Int): String {

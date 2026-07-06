@@ -23,6 +23,7 @@ object Prefs {
     private const val K_SOUND = "sound_uri"
     private const val K_VOLUME = "volume_pct"
     private const val K_SHOW_STATUS = "show_status_notif"
+    private const val K_ALARM_LEN = "alarm_len_sec"
 
     /** Active-hours grid dimensions. Day index 0=Mon .. 6=Sun; hour 0..23. */
     const val GRID_DAYS = 7
@@ -63,6 +64,12 @@ object Prefs {
     fun volumePct(ctx: Context) = sp(ctx).getInt(K_VOLUME, 100).coerceIn(0, 100)
     fun setVolumePct(ctx: Context, v: Int) =
         sp(ctx).edit().putInt(K_VOLUME, v.coerceIn(0, 100)).apply()
+
+    /** How long the alarm rings, in seconds. Capped at 10 (reminder plays from a receiver). */
+    const val ALARM_LEN_MAX = 10
+    fun alarmLenSec(ctx: Context) = sp(ctx).getInt(K_ALARM_LEN, 5).coerceIn(1, ALARM_LEN_MAX)
+    fun setAlarmLenSec(ctx: Context, v: Int) =
+        sp(ctx).edit().putInt(K_ALARM_LEN, v.coerceIn(1, ALARM_LEN_MAX)).apply()
 
     /** Whether to show the ongoing status-bar notification with the next-snack countdown. */
     fun showStatus(ctx: Context) = sp(ctx).getBoolean(K_SHOW_STATUS, true)
@@ -120,7 +127,10 @@ object Prefs {
     }
 
     // ---- log history ----
-    fun addLog(ctx: Context, exercise: String, done: Boolean, durationSec: Int, reps: Int = 0) {
+    fun addLog(
+        ctx: Context, exercise: String, done: Boolean,
+        durationSec: Int, reps: Int = 0, note: String = ""
+    ) {
         val arr = rawLogs(ctx)
         val obj = JSONObject()
         obj.put("ts", System.currentTimeMillis())
@@ -128,6 +138,7 @@ object Prefs {
         obj.put("done", done)
         obj.put("dur", durationSec)          // seconds actually exercised
         obj.put("reps", reps)                // optional rep count, 0 = unspecified
+        obj.put("note", note)                // optional excuse / note
         arr.put(obj)
         sp(ctx).edit().putString(K_LOGS, arr.toString()).apply()
     }
@@ -143,7 +154,8 @@ object Prefs {
                     o.optString("exercise", ""),
                     o.optBoolean("done", true),
                     o.optInt("dur", 0),         // older logs had no duration
-                    o.optInt("reps", 0)         // older logs had no reps
+                    o.optInt("reps", 0),        // older logs had no reps
+                    o.optString("note", "")     // older logs had no note
                 )
             )
         }
@@ -195,5 +207,6 @@ data class LogEntry(
     val exercise: String,
     val done: Boolean,
     val durationSec: Int = 0,
-    val reps: Int = 0
+    val reps: Int = 0,
+    val note: String = ""
 )

@@ -31,6 +31,7 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var btnSound: Button
     private lateinit var sbVolume: SeekBar
     private lateinit var tvVolumeValue: TextView
+    private lateinit var etAlarmLen: EditText
     private lateinit var switchStatusNotif: SwitchMaterial
     private lateinit var llExercises: LinearLayout
     private lateinit var etNewExercise: EditText
@@ -80,12 +81,14 @@ class SettingsActivity : AppCompatActivity() {
         btnSound = findViewById(R.id.btnSound)
         sbVolume = findViewById(R.id.sbVolume)
         tvVolumeValue = findViewById(R.id.tvVolumeValue)
+        etAlarmLen = findViewById(R.id.etAlarmLen)
         switchStatusNotif = findViewById(R.id.switchStatusNotif)
         llExercises = findViewById(R.id.llExercises)
         etNewExercise = findViewById(R.id.etNewExercise)
 
         etInterval.setText(Prefs.intervalMin(this).toString())
         etDuration.setText(Prefs.durationSec(this).toString())
+        etAlarmLen.setText(Prefs.alarmLenSec(this).toString())
 
         Prefs.getGrid(this).copyInto(grid)
         buildGrid()
@@ -272,7 +275,7 @@ class SettingsActivity : AppCompatActivity() {
             val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
             val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.US)
             val sb = StringBuilder()
-            sb.append("timestamp_iso,date,time,exercise,reps,did_it,duration_seconds,duration_minutes\n")
+            sb.append("timestamp_iso,date,time,exercise,reps,did_it,duration_seconds,duration_minutes,note\n")
             // Export oldest-first for a natural chronological file.
             for (e in Prefs.getLogs(this).sortedBy { it.ts }) {
                 val d = Date(e.ts)
@@ -283,7 +286,8 @@ class SettingsActivity : AppCompatActivity() {
                     .append(if (e.reps > 0) e.reps.toString() else "").append(',')
                     .append(if (e.done) "yes" else "no").append(',')
                     .append(e.durationSec).append(',')
-                    .append(String.format(Locale.US, "%.1f", e.durationSec / 60.0))
+                    .append(String.format(Locale.US, "%.1f", e.durationSec / 60.0)).append(',')
+                    .append(csvEscape(e.note))
                     .append('\n')
             }
             contentResolver.openOutputStream(uri)?.use { it.write(sb.toString().toByteArray(Charsets.UTF_8)) }
@@ -336,17 +340,22 @@ class SettingsActivity : AppCompatActivity() {
     private fun save() {
         val interval = etInterval.text.toString().toIntOrNull()
         val duration = etDuration.text.toString().toIntOrNull()
+        val alarmLen = etAlarmLen.text.toString().toIntOrNull()
         if (interval == null || interval < 1) {
             Toast.makeText(this, "Interval must be at least 1 minute", Toast.LENGTH_SHORT).show(); return
         }
         if (duration == null || duration < 5) {
             Toast.makeText(this, "Snack length must be at least 5 seconds", Toast.LENGTH_SHORT).show(); return
         }
+        if (alarmLen == null || alarmLen < 1 || alarmLen > Prefs.ALARM_LEN_MAX) {
+            Toast.makeText(this, "Alarm length must be 1–${Prefs.ALARM_LEN_MAX} seconds", Toast.LENGTH_SHORT).show(); return
+        }
         if (exercises.isEmpty()) {
             Toast.makeText(this, "Add at least one exercise", Toast.LENGTH_SHORT).show(); return
         }
         Prefs.setIntervalMin(this, interval)
         Prefs.setDurationSec(this, duration)
+        Prefs.setAlarmLenSec(this, alarmLen)
         Prefs.setGrid(this, grid)
         Prefs.setSoundUri(this, soundSel)
         Prefs.setVolumePct(this, sbVolume.progress)
